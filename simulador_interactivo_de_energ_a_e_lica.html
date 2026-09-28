@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Interactivo de Energía Eólica y Aerogeneradores</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyan: {
+                            400: '#22d3ee',
+                            500: '#06b6d4',
+                            900: '#164e63',
+                        },
+                        slate: {
+                            800: '#1e293b',
+                            850: '#151f30',
+                            900: '#0f172a',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Font Awesome para Iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Estilos CSS Personalizados para Canvas y UI -->
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #f1f5f9;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            overflow-x: hidden;
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #06b6d4;
+        }
+
+        /* Styling Range Sliders */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #334155;
+            border-radius: 6px;
+            height: 6px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #22d3ee;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+            transition: transform 0.1s ease, background 0.2s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #38bdf8;
+        }
+
+        /* Pulse badge effect for active warnings */
+        @keyframes pulse-red {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.05); }
+        }
+        .warning-pulse {
+            animation: pulse-red 1.2s infinite ease-in-out;
+        }
+
+        /* Toggle switch design */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #22d3ee;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #06b6d4;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- Header principal -->
+    <header class="glass-panel sticky top-0 z-50 border-b border-slate-700/50 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl border border-cyan-500/30">
+                    <i class="fa-solid fa-fan text-2xl animate-spin" style="animation-duration: 8s;"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-white via-cyan-200 to-cyan-400 bg-clip-text text-transparent">
+                        Simulador de Energía Eólica
+                    </h1>
+                    <p class="text-xs text-slate-400">Modelo Físico Avanzado & Aerogenerador 2D en Tiempo Real</p>
+                </div>
+            </div>
+
+            <!-- Botones de Acción Global -->
+            <div class="flex items-center space-x-3">
+                <button id="btnExportCSV" class="px-3.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-cyan-300 rounded-lg border border-slate-600 transition flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-file-csv text-sm"></i>
+                    <span>Exportar CSV</span>
+                </button>
+                <button id="btnDownloadHTML" class="px-3.5 py-1.5 text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg shadow-lg shadow-cyan-900/40 transition flex items-center gap-2">
+                    <i class="fa-solid fa-download text-sm"></i>
+                    <span>Descargar HTML</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="max-w-7xl mx-auto w-full p-4 lg:p-6 flex-grow space-y-6">
+
+        <!-- Banner de Perfiles Climáticos Preestablecidos -->
+        <section class="glass-panel rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-2 text-slate-300 text-sm font-semibold">
+                <i class="fa-solid fa-sliders text-cyan-400"></i>
+                <span>Perfiles Preestablecidos:</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="applyPreset('light')" class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500 border border-slate-700 text-slate-200 transition">
+                    <i class="fa-solid fa-wind text-cyan-400 mr-1.5"></i>Brisa Ligera (4 m/s)
+                </button>
+                <button onclick="applyPreset('nominal')" class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500 border border-slate-700 text-slate-200 transition">
+                    <i class="fa-solid fa-bolt text-emerald-400 mr-1.5"></i>Nominal MPPT (12 m/s)
+                </button>
+                <button onclick="applyPreset('storm')" class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500 border border-slate-700 text-slate-200 transition">
+                    <i class="fa-solid fa-cloud-showers-heavy text-amber-400 mr-1.5"></i>Tormenta / Cut-out (27 m/s)
+                </button>
+                <button onclick="applyPreset('offshore')" class="px-3 py-1.5 text-xs rounded-lg bg-slate-800 hover:bg-cyan-950 hover:border-cyan-500 border border-slate-700 text-slate-200 transition">
+                    <i class="fa-solid fa-water text-blue-400 mr-1.5"></i>Parque Offshore (15 m/s)
+                </button>
+            </div>
+        </section>
+
+        <!-- Grilla Principal: Canvas + Panel de Control Paramétrico -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Visualización Gráfica Canvas 2D -->
+            <div class="lg:col-span-8 flex flex-col space-y-4">
+                <div class="glass-panel rounded-2xl p-4 relative overflow-hidden flex flex-col flex-grow min-h-[460px]">
+                    <!-- Encabezado sobre Canvas -->
+                    <div class="flex justify-between items-center mb-2 z-10">
+                        <div class="flex items-center space-x-2">
+                            <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Entorno y Flujo Aerodinámico en Vivo</span>
+                        </div>
+                        <div id="statusBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                            <i class="fa-solid fa-circle-check text-[10px]"></i>
+                            <span>Operación Normal</span>
+                        </div>
+                    </div>
+
+                    <!-- Canvas 2D interactivo -->
+                    <div class="relative w-full flex-grow rounded-xl overflow-hidden border border-slate-700/60 bg-slate-900 shadow-inner">
+                        <canvas id="turbineCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+                        
+                        <!-- Overlay de información superpuesta en Canvas -->
+                        <div class="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-md p-3 rounded-xl border border-slate-700/80 text-xs space-y-1 text-slate-200">
+                            <div class="flex justify-between gap-4"><span class="text-slate-400">Velocidad Viento:</span> <span id="overlayWind" class="font-mono text-cyan-400 font-bold">12.0 m/s</span></div>
+                            <div class="flex justify-between gap-4"><span class="text-slate-400">Velocidad Rotor:</span> <span id="overlayRpm" class="font-mono text-emerald-400 font-bold">15.2 RPM</span></div>
+                            <div class="flex justify-between gap-4"><span class="text-slate-400">Ángulo Pitch (&beta;):</span> <span id="overlayPitch" class="font-mono text-amber-300 font-bold">0.0°</span></div>
+                            <div class="flex justify-between gap-4"><span class="text-slate-400">TSR (&lambda;):</span> <span id="overlayTsr" class="font-mono text-purple-300 font-bold">8.1</span></div>
+                        </div>
+
+                        <!-- Indicador visual de Freno por Tormenta -->
+                        <div id="brakeAlert" class="hidden absolute top-4 right-4 bg-red-900/90 border border-red-500 text-red-100 px-4 py-2 rounded-xl text-xs font-bold warning-pulse flex items-center gap-2">
+                            <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+                            <div>
+                                <p class="leading-tight">¡FRENO DE SEGURIDAD ACTIVADO!</p>
+                                <p class="text-[10px] text-red-200 font-normal">Superada velocidad límite (Cut-out > 25 m/s)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel de Controles e Insumos Físicos -->
+            <div class="lg:col-span-4 glass-panel rounded-2xl p-5 flex flex-col justify-between space-y-5">
+                <div>
+                    <h2 class="text-base font-bold text-slate-100 border-b border-slate-700/60 pb-3 mb-4 flex items-center justify-between">
+                        <span>Parámetros del Sistema</span>
+                        <i class="fa-solid fa-gears text-cyan-400"></i>
+                    </h2>
+
+                    <div class="space-y-4 text-xs">
+                        <!-- Slider: Velocidad del Viento -->
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between font-medium">
+                                <label for="inputWindSpeed" class="text-slate-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-wind text-cyan-400"></i> Velocidad Viento ($v$)
+                                </label>
+                                <span class="font-mono text-cyan-400 font-bold text-sm" id="valWindSpeed">12.0 m/s</span>
+                            </div>
+                            <input type="range" id="inputWindSpeed" min="0" max="30" step="0.2" value="12" class="w-full">
+                            <div class="flex justify-between text-[10px] text-slate-500">
+                                <span>0 m/s</span>
+                                <span>Cut-in: 3m/s</span>
+                                <span>Rated: 12m/s</span>
+                                <span>Cut-out: 25m/s</span>
+                            </div>
+                        </div>
+
+                        <!-- Slider: Radio del Rotor -->
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between font-medium">
+                                <label for="inputRadius" class="text-slate-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-[#06b6d4] fa-ruler-horizontal text-blue-400"></i> Radio del Rotor ($R$)
+                                </label>
+                                <span class="font-mono text-blue-400 font-bold text-sm" id="valRadius">50 m</span>
+                            </div>
+                            <input type="range" id="inputRadius" min="20" max="90" step="1" value="50" class="w-full">
+                            <div class="flex justify-between text-[10px] text-slate-500">
+                                <span>20 m (Pequeno)</span>
+                                <span>50 m (Estándar)</span>
+                                <span>90 m (Gigante)</span>
+                            </div>
+                        </div>
+
+                        <!-- Slider: Densidad del Aire -->
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between font-medium">
+                                <label for="inputDensity" class="text-slate-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-cloud text-indigo-400"></i> Densidad Aire ($\rho$)
+                                </label>
+                                <span class="font-mono text-indigo-400 font-bold text-sm" id="valDensity">1.225 kg/m³</span>
+                            </div>
+                            <input type="range" id="inputDensity" min="1.00" max="1.32" step="0.005" value="1.225" class="w-full">
+                            <div class="flex justify-between text-[10px] text-slate-500">
+                                <span>1.00 (Montaña)</span>
+                                <span>1.225 (Nivel del mar)</span>
+                                <span>1.32 (Frío extremo)</span>
+                            </div>
+                        </div>
+
+                        <!-- Switch: Pitch Automático (MPPT / Proteccion) -->
+                        <div class="pt-2 border-t border-slate-700/50 flex items-center justify-between">
+                            <div class="space-y-0.5">
+                                <span class="text-slate-200 font-semibold block">Control Automático de Pitch</span>
+                                <span class="text-[10px] text-slate-400 block">Optimiza $C_p$ (MPPT) y limita sobrepotencia</span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="toggleAutoPitch" class="sr-only peer" checked>
+                                <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-500"></div>
+                            </label>
+                        </div>
+
+                        <!-- Slider: Ángulo de Pitch Manual (Beta) -->
+                        <div id="manualPitchContainer" class="space-y-1.5 opacity-50 pointer-events-none transition-opacity">
+                            <div class="flex justify-between font-medium">
+                                <label for="inputPitch" class="text-slate-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-rotate-right text-amber-400"></i> Ángulo Calado / Pitch ($\beta$)
+                                </label>
+                                <span class="font-mono text-amber-400 font-bold text-sm" id="valPitch">0.0°</span>
+                            </div>
+                            <input type="range" id="inputPitch" min="0" max="30" step="0.5" value="0" class="w-full">
+                            <div class="flex justify-between text-[10px] text-slate-500">
+                                <span>0° (Máx. Potencia)</span>
+                                <span>15° (Reducido)</span>
+                                <span>30° (Min. Carga)</span>
+                            </div>
+                        </div>
+
+                        <!-- Slider: Eficiencia del Generador / Multiplicadora -->
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between font-medium">
+                                <label for="inputEfficiency" class="text-slate-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-gauge-high text-emerald-400"></i> Eficiencia Global ($\eta$)
+                                </label>
+                                <span class="font-mono text-emerald-400 font-bold text-sm" id="valEfficiency">92 %</span>
+                            </div>
+                            <input type="range" id="inputEfficiency" min="80" max="98" step="1" value="92" class="w-full">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumen Rápido Técnico -->
+                <div class="glass-card rounded-xl p-3 text-[11px] space-y-1.5 border border-slate-700/60">
+                    <div class="flex justify-between text-slate-400">
+                        <span>Área Barrida por Rotor ($A$):</span>
+                        <span id="txtSweptArea" class="font-mono text-slate-200">7,854 m²</span>
+                    </div>
+                    <div class="flex justify-between text-slate-400">
+                        <span>Potencia Teórica del Viento:</span>
+                        <span id="txtWindPower" class="font-mono text-cyan-300">8,300 kW</span>
+                    </div>
+                    <div class="flex justify-between text-slate-400">
+                        <span>Coeficiente de Potencia ($C_p$):</span>
+                        <span id="txtCpVal" class="font-mono text-emerald-400 font-bold">0.475 (Max Betz: 0.593)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tarjetas de Métricas Energéticas e Impacto Ambiental -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="glass-panel p-4 rounded-2xl flex items-center space-x-4">
+                <div class="p-3 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-xl">
+                    <i class="fa-solid fa-bolt-lightning text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 uppercase font-semibold">Potencia Eléctrica</p>
+                    <h3 id="cardPower" class="text-xl font-bold text-white font-mono">0.00 <span class="text-xs text-cyan-400">MW</span></h3>
+                    <p class="text-[10px] text-slate-400">Generación activa instantánea</p>
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 rounded-2xl flex items-center space-x-4">
+                <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
+                    <i class="fa-solid fa-charging-station text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 uppercase font-semibold">Energía Acumulada</p>
+                    <h3 id="cardEnergy" class="text-xl font-bold text-white font-mono">0.00 <span class="text-xs text-emerald-400">kWh</span></h3>
+                    <p class="text-[10px] text-slate-400">Desde el inicio de sesión</p>
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 rounded-2xl flex items-center space-x-4">
+                <div class="p-3 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-xl">
+                    <i class="fa-solid fa-house-chimney-user text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 uppercase font-semibold">Hogares Abastecidos</p>
+                    <h3 id="cardHomes" class="text-xl font-bold text-white font-mono">0</h3>
+                    <p class="text-[10px] text-slate-400">Equivalencia (0.5 kW/hogar)</p>
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 rounded-2xl flex items-center space-x-4">
+                <div class="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl">
+                    <i class="fa-solid fa-leaf text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 uppercase font-semibold">CO₂ Evitado</p>
+                    <h3 id="cardCo2" class="text-xl font-bold text-white font-mono">0.00 <span class="text-xs text-amber-400">kg</span></h3>
+                    <p class="text-[10px] text-slate-400">Basado en 0.4 kg/kWh</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Gráficos de Rendimiento Aerodinámico y Eléctrico -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <!-- Gráfico 1: Curva de Potencia (P vs V) -->
+            <div class="glass-panel rounded-2xl p-4 flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-cyan-400"></i> Curva de Potencia ($P$ vs $v$)
+                    </h3>
+                </div>
+                <div class="relative flex-grow h-56 w-full">
+                    <canvas id="powerCurveChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráfico 2: Coeficiente de Potencia Cp vs TSR (Lambda) -->
+            <div class="glass-panel rounded-2xl p-4 flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-bezier-curve text-emerald-400"></i> Curva $C_p$ vs TSR ($\lambda$)
+                    </h3>
+                </div>
+                <div class="relative flex-grow h-56 w-full">
+                    <canvas id="cpCurveChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráfico 3: Historial Temporal de Generación Electrica -->
+            <div class="glass-panel rounded-2xl p-4 flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-wave-square text-purple-400"></i> Generación en Tiempo Real
+                    </h3>
+                </div>
+                <div class="relative flex-grow h-56 w-full">
+                    <canvas id="timeSeriesChart"></canvas>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="glass-panel border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500 mt-6">
+        Simulador Interactivo de Energía Eólica &bull; Basado en las ecuaciones aerodinámicas de Betz y modelos MPPT.
+    </footer>
+
+    <script>
+        // Global Simulation State
+        const state = {
+            windSpeed: 12.0,      // m/s
+            radius: 50.0,         // m
+            density: 1.225,       // kg/m3
+            pitch: 0.0,           // degrees
+            autoPitch: true,      // auto MPPT/Protection mode
+            efficiency: 0.92,     // global efficiency
+            
+            // Computed Physics Outputs
+            cp: 0,
+            tsr: 0,
+            rpm: 0,
+            powerWind: 0,        // Watts
+            powerElec: 0,        // Watts
+            sweptArea: 0,        // m2
+            
+            // Accumulated metrics
+            energyAccumulatedJ: 0,// Joules
+            lastTime: performance.now(),
+            
+            // Safety Cut-Out flag
+            isCutOut: false
+        };
+
+        // Telemetry Data Log for CSV Export
+        const historyLog = [];
+        const MAX_HISTORY_LOG = 300; // max log lines
+
+        /**
+         * Calculates the Power Coefficient Cp(lambda, pitch)
+         * Using analytical wind turbine model standard approximation:
+         * 1/lambda_i = 1/(lambda + 0.08*pitch) - 0.035/(pitch^3 + 1)
+         * Cp = c1 * (c2/lambda_i - c3*pitch - c4) * exp(-c5/lambda_i) + c6*lambda
+         */
+        function calculateCp(lambda, pitchDeg) {
+            if (lambda <= 0.1) return 0.0;
+
+            const c1 = 0.5176;
+            const c2 = 116;
+            const c3 = 0.4;
+            const c4 = 5;
+            const c5 = 21;
+            const c6 = 0.0068;
+
+            const beta = pitchDeg;
+            const invLambdaI = (1.0 / (lambda + 0.08 * beta)) - (0.035 / (Math.pow(beta, 3) + 1));
+            
+            if (invLambdaI <= 0) return 0.0;
+
+            let cpVal = c1 * ( (c2 * invLambdaI) - (c3 * beta) - c4 ) * Math.exp(-c5 * invLambdaI) + (c6 * lambda);
+            
+            // Betz limit physical constraint (0 <= Cp <= 0.593)
+            if (cpVal < 0) cpVal = 0;
+            if (cpVal > 0.593) cpVal = 0.593;
+
+            return cpVal;
+        }
+
+        function updatePhysics(dt) {
+            const v = state.windSpeed;
+            const R = state.radius;
+            const rho = state.density;
+            const eta = state.efficiency;
+            
+            // Calculate Rotor Swept Area
+            state.sweptArea = Math.PI * R * R;
+            
+            // Available Wind Power
+            state.powerWind = 0.5 * rho * state.sweptArea * Math.pow(v, 3);
+
+            // Cut-in, Rated and Cut-out constants
+            const vCutIn = 3.0;
+            const vRated = 12.0;
+            const vCutOut = 25.0;
+
+            // Rated design power (kW reference for scaling)
+            const ratedPowerKW = 0.5 * rho * state.sweptArea * Math.pow(vRated, 3) * 0.48 * eta / 1000;
+
+            // Check Emergency Cut-Out Condition
+            if (v > vCutOut) {
+                state.isCutOut = true;
+            } else {
+                state.isCutOut = false;
+            }
+
+            // Automatic Pitch Control System (MPPT & Feathering Safety)
+            if (state.autoPitch) {
+                if (state.isCutOut) {
+                    // Feather blades to 30 degrees (max safety pitch)
+                    state.pitch = 30.0;
+                } else if (v < vCutIn) {
+                    state.pitch = 0.0;
+                } else if (v <= vRated) {
+                    // MPPT Region: Optimal pitch = 0°
+                    state.pitch = 0.0;
+                } else {
+                    // Above Rated Speed: Shed excess aerodynamic power by pitching blades
+                    // Linearly increase pitch up to ~25 degrees at cut-out
+                    const ratio = (v - vRated) / (vCutOut - vRated);
+                    state.pitch = Math.min(28.0, ratio * 24.0);
+                }
+                // Update Pitch slider UI to match auto value
+                document.getElementById('inputPitch').value = state.pitch.toFixed(1);
+                document.getElementById('valPitch').innerText = state.pitch.toFixed(1) + '°';
+            }
+
+            // Calculate Target Rotor RPM
+            let targetRpm = 0;
+            if (v >= vCutIn && !state.isCutOut) {
+                // Optimal Tip Speed Ratio ~8.1 for max Cp
+                const optimalTsr = 8.1;
+                // w = lambda * v / R (rad/s)
+                let w = (optimalTsr * v) / R;
+                // Limit maximum rotational RPM for dynamic stability
+                const maxRpm = (15.0 * 50.0) / R; // ~15 RPM for 50m rotor
+                targetRpm = Math.min( (w * 60) / (2 * Math.PI), maxRpm );
+                
+                // If pitching down due to high winds, decrease target RPM slightly
+                if (v > vRated) {
+                    targetRpm = maxRpm;
+                }
+            } else {
+                targetRpm = 0;
+            }
+
+            // Smooth RPM inertia transition
+            state.rpm += (targetRpm - state.rpm) * Math.min(1.0, dt * 2.0);
+            if (state.rpm < 0.01) state.rpm = 0;
+
+            // Compute actual Tip Speed Ratio TSR (lambda)
+            const currentOmega = (state.rpm * 2 * Math.PI) / 60;
+            state.tsr = (v > 0.1) ? (currentOmega * R) / v : 0;
+
+            // Compute Aerodynamic Power Coefficient Cp
+            if (state.rpm > 0.1 && v >= vCutIn && !state.isCutOut) {
+                state.cp = calculateCp(state.tsr, state.pitch);
+            } else {
+                state.cp = 0.0;
+            }
+
+            // Mechanical and Electrical Power Calculation
+            if (state.isCutOut) {
+                state.powerElec = 0;
+            } else {
+                let pMech = 0.5 * rho * state.sweptArea * Math.pow(v, 3) * state.cp;
+                
+                // Cap electrical power to generator capacity if exceeding rated
+                const maxElectricCapacity = ratedPowerKW * 1000;
+                let pElec = pMech * eta;
+                if (pElec > maxElectricCapacity) {
+                    pElec = maxElectricCapacity;
+                }
+                state.powerElec = Math.max(0, pElec);
+            }
+
+            // Energy Accumulation (Joules = Watts * seconds)
+            state.energyAccumulatedJ += state.powerElec * dt;
+        }
+
+        const canvas = document.getElementById('turbineCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Particle system for wind flow animation
+        const windParticles = [];
+        const NUM_PARTICLES = 160;
+
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+            windParticles.push({
+                x: Math.random() * 1000,
+                y: Math.random() * 600,
+                length: Math.random() * 25 + 10,
+                speedFactor: 0.8 + Math.random() * 0.4,
+                opacity: 0.2 + Math.random() * 0.5
+            });
+        }
+
+        // Cloud objects
+        const clouds = [
+            { x: 50, y: 60, scale: 0.8, speed: 0.3 },
+            { x: 400, y: 90, scale: 1.2, speed: 0.5 },
+            { x: 750, y: 50, scale: 0.6, speed: 0.2 }
+        ];
+
+        let bladeAngle = 0;
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function renderCanvas(dt) {
+            const w = canvas.width;
+            const h = canvas.height;
+
+            // Clear Canvas
+            ctx.clearRect(0, 0, w, h);
+
+            // Dynamic Sky Background based on wind speed
+            const isStorm = state.windSpeed > 22;
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+            if (isStorm) {
+                skyGrad.addColorStop(0, '#0f172a');
+                skyGrad.addColorStop(0.6, '#1e293b');
+                skyGrad.addColorStop(1, '#334155');
+            } else {
+                skyGrad.addColorStop(0, '#0c1a30');
+                skyGrad.addColorStop(0.6, '#132e4f');
+                skyGrad.addColorStop(1, '#1e3a5f');
+            }
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw Clouds
+            ctx.fillStyle = isStorm ? 'rgba(100, 116, 139, 0.35)' : 'rgba(255, 255, 255, 0.15)';
+            clouds.forEach(cloud => {
+                cloud.x += state.windSpeed * cloud.speed * dt * 8;
+                if (cloud.x > w + 100) cloud.x = -100;
+
+                ctx.beginPath();
+                ctx.arc(cloud.x, cloud.y, 25 * cloud.scale, 0, Math.PI * 2);
+                ctx.arc(cloud.x + 20 * cloud.scale, cloud.y - 10 * cloud.scale, 30 * cloud.scale, 0, Math.PI * 2);
+                ctx.arc(cloud.x + 45 * cloud.scale, cloud.y, 20 * cloud.scale, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw Background Rolling Hills
+            ctx.fillStyle = '#0f2338';
+            ctx.beginPath();
+            ctx.moveTo(0, h - 80);
+            ctx.quadraticCurveTo(w * 0.25, h - 130, w * 0.5, h - 80);
+            ctx.quadraticCurveTo(w * 0.75, h - 30, w, h - 90);
+            ctx.lineTo(w, h);
+            ctx.lineTo(0, h);
+            ctx.fill();
+
+            // Foreground Hill & Grass
+            ctx.fillStyle = '#0a192f';
+            ctx.beginPath();
+            ctx.moveTo(0, h - 40);
+            ctx.quadraticCurveTo(w * 0.4, h - 90, w, h - 40);
+            ctx.lineTo(w, h);
+            ctx.lineTo(0, h);
+            ctx.fill();
+
+            // Wind Turbine Geometry Anchors
+            const turbineX = w * 0.45;
+            const groundY = h - 50;
+            const towerHeight = Math.min(h * 0.52, 280);
+            const hubY = groundY - towerHeight;
+            const bladeLength = Math.min(towerHeight * 0.78, 150) * (state.radius / 50.0);
+
+            // Render Wind Particles (Passing left to right)
+            ctx.lineWidth = 1.5;
+            windParticles.forEach(p => {
+                // Update particle position
+                let currentSpeed = state.windSpeed * p.speedFactor * 12 * dt;
+                
+                // Wake effect (particles slow down behind rotor disk)
+                if (p.x > turbineX && p.x < turbineX + bladeLength * 1.5 && Math.abs(p.y - hubY) < bladeLength * 1.1) {
+                    currentSpeed *= (1 - state.cp * 0.6); // Slowed down by extracted energy
+                }
+
+                p.x += currentSpeed;
+                if (p.x > w) {
+                    p.x = -20;
+                    p.y = Math.random() * (h - 60);
+                }
+
+                // Render particle streak
+                const streakLength = Math.max(8, p.length * (state.windSpeed / 10));
+                const alpha = p.opacity * Math.min(1.0, state.windSpeed / 5);
+
+                const pGrad = ctx.createLinearGradient(p.x, p.y, p.x + streakLength, p.y);
+                pGrad.addColorStop(0, 'rgba(34, 211, 238, 0)');
+                pGrad.addColorStop(1, isStorm ? `rgba(248, 113, 113, ${alpha})` : `rgba(34, 211, 238, ${alpha})`);
+
+                ctx.strokeStyle = pGrad;
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.lineTo(p.x + streakLength, p.y);
+                ctx.stroke();
+            });
+
+            // Tower Base Concrete Pad
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(turbineX - 25, groundY - 6, 50, 8);
+
+            // Tapered Tower
+            const towerGrad = ctx.createLinearGradient(turbineX - 18, 0, turbineX + 18, 0);
+            towerGrad.addColorStop(0, '#64748b');
+            towerGrad.addColorStop(0.4, '#f8fafc');
+            towerGrad.addColorStop(1, '#334155');
+
+            ctx.fillStyle = towerGrad;
+            ctx.beginPath();
+            ctx.moveTo(turbineX - 14, groundY - 6);
+            ctx.lineTo(turbineX - 7, hubY);
+            ctx.lineTo(turbineX + 7, hubY);
+            ctx.lineTo(turbineX + 14, groundY - 6);
+            ctx.closePath();
+            ctx.fill();
+
+            // Nacelle Top Housing
+            ctx.fillStyle = '#cbd5e1';
+            ctx.beginPath();
+            ctx.roundRect(turbineX - 18, hubY - 10, 36, 18, 5);
+            ctx.fill();
+            
+            // Red Warning Light on Nacelle
+            if (state.isCutOut || (Math.floor(Date.now() / 500) % 2 === 0)) {
+                ctx.fillStyle = state.isCutOut ? '#ef4444' : '#f59e0b';
+                ctx.beginPath();
+                ctx.arc(turbineX, hubY - 12, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Update Blade Rotation Angle
+            bladeAngle += (state.rpm * 2 * Math.PI / 60) * dt;
+
+            // Render 3 Aerodynamic Rotor Blades
+            ctx.save();
+            ctx.translate(turbineX, hubY);
+
+            // Pitch visual perspective thickness factor (At pitch=0 -> full width, at pitch=30 -> thin profile)
+            const pitchThicknessRatio = Math.max(0.2, 1.0 - (state.pitch / 35.0));
+
+            for (let i = 0; i < 3; i++) {
+                const currentBladeAngle = bladeAngle + (i * Math.PI * 2 / 3);
+                
+                ctx.save();
+                ctx.rotate(currentBladeAngle);
+
+                // Blade Gradient (Aerodynamic shape)
+                const bladeGrad = ctx.createLinearGradient(0, 0, 12 * pitchThicknessRatio, bladeLength);
+                bladeGrad.addColorStop(0, '#f8fafc');
+                bladeGrad.addColorStop(0.7, '#cbd5e1');
+                bladeGrad.addColorStop(1, '#94a3b8');
+
+                ctx.fillStyle = bladeGrad;
+                ctx.beginPath();
+                ctx.moveTo(-3 * pitchThicknessRatio, 0);
+                // Aerodynamic curvature curve
+                ctx.bezierCurveTo(
+                    -8 * pitchThicknessRatio, bladeLength * 0.3,
+                    -5 * pitchThicknessRatio, bladeLength * 0.7,
+                    0, bladeLength
+                );
+                ctx.bezierCurveTo(
+                    4 * pitchThicknessRatio, bladeLength * 0.7,
+                    6 * pitchThicknessRatio, bladeLength * 0.3,
+                    3 * pitchThicknessRatio, 0
+                );
+                ctx.closePath();
+                ctx.fill();
+
+                // Blade Tip Red Identification Striping
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(0, bladeLength - 4, 3 * pitchThicknessRatio, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+
+            // Rotor Hub Center Cap
+            const hubGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 10);
+            hubGrad.addColorStop(0, '#ffffff');
+            hubGrad.addColorStop(1, '#64748b');
+            ctx.fillStyle = hubGrad;
+            ctx.beginPath();
+            ctx.arc(0, 0, 10, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        // Chart Objects
+        let powerCurveChart, cpCurveChart, timeSeriesChart;
+
+        function initCharts() {
+            const chartOptionsBase = {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1e293b',
+                        titleColor: '#22d3ee',
+                        bodyColor: '#f8fafc',
+                        borderColor: '#334155',
+                        borderWidth: 1
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#94a3b8', font: { size: 10 } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#94a3b8', font: { size: 10 } }
+                    }
+                }
+            };
+
+            // 1. Power Curve Chart (P vs Wind Speed)
+            const ctxPower = document.getElementById('powerCurveChart').getContext('2d');
+            powerCurveChart = new Chart(ctxPower, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 31}, (_, i) => i),
+                    datasets: [
+                        {
+                            label: 'Curva Teórica (kW)',
+                            data: [],
+                            borderColor: '#06b6d4',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Punto Operativo Actual',
+                            data: [],
+                            borderColor: '#ef4444',
+                            backgroundColor: '#ef4444',
+                            pointRadius: 6,
+                            pointHoverRadius: 8,
+                            showLine: false
+                        }
+                    ]
+                },
+                options: {
+                    ...chartOptionsBase,
+                    scales: {
+                        x: { ...chartOptionsBase.scales.x, title: { display: true, text: 'Viento (m/s)', color: '#64748b' } },
+                        y: { ...chartOptionsBase.scales.y, title: { display: true, text: 'Potencia (kW)', color: '#64748b' } }
+                    }
+                }
+            });
+
+            // 2. Cp vs TSR Chart
+            const ctxCp = document.getElementById('cpCurveChart').getContext('2d');
+            
+            // Generate standard Cp vs TSR curve data points for current pitch
+            const tsrAxis = Array.from({length: 30}, (_, i) => (i * 0.5).toFixed(1));
+
+            cpCurveChart = new Chart(ctxCp, {
+                type: 'line',
+                data: {
+                    labels: tsrAxis,
+                    datasets: [
+                        {
+                            label: 'Cp(λ)',
+                            data: [],
+                            borderColor: '#10b981',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Operación Actual',
+                            data: [],
+                            borderColor: '#f59e0b',
+                            backgroundColor: '#f59e0b',
+                            pointRadius: 6,
+                            showLine: false
+                        }
+                    ]
+                },
+                options: {
+                    ...chartOptionsBase,
+                    scales: {
+                        x: { ...chartOptionsBase.scales.x, title: { display: true, text: 'TSR (λ)', color: '#64748b' } },
+                        y: { ...chartOptionsBase.scales.y, min: 0, max: 0.6, title: { display: true, text: 'Coeficiente Cp', color: '#64748b' } }
+                    }
+                }
+            });
+
+            // 3. Time Series Chart (Live Output Power kW over time)
+            const ctxTime = document.getElementById('timeSeriesChart').getContext('2d');
+            timeSeriesChart = new Chart(ctxTime, {
+                type: 'line',
+                data: {
+                    labels: Array(30).fill(''),
+                    datasets: [{
+                        label: 'Potencia Eléctrica (kW)',
+                        data: Array(30).fill(0),
+                        borderColor: '#a855f7',
+                        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        pointRadius: 0,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    ...chartOptionsBase,
+                    scales: {
+                        x: { display: false },
+                        y: { ...chartOptionsBase.scales.y, title: { display: true, text: 'kW', color: '#64748b' } }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            // Update 1: Power Curve Data recalculation for current parameters
+            const powerCurveData = [];
+            for (let v = 0; v <= 30; v++) {
+                if (v < 3.0 || v > 25.0) {
+                    powerCurveData.push(0);
+                } else {
+                    const optimalTsr = 8.1;
+                    const cpVal = calculateCp(optimalTsr, (v > 12 && state.autoPitch) ? (v - 12) * 2 : state.pitch);
+                    const sweptArea = Math.PI * state.radius * state.radius;
+                    let pMech = 0.5 * state.density * sweptArea * Math.pow(v, 3) * cpVal;
+                    let pElec = pMech * state.efficiency / 1000; // kW
+                    
+                    // Cap rated power
+                    const ratedP = 0.5 * state.density * sweptArea * Math.pow(12, 3) * 0.48 * state.efficiency / 1000;
+                    if (pElec > ratedP) pElec = ratedP;
+
+                    powerCurveData.push(pElec.toFixed(1));
+                }
+            }
+
+            powerCurveChart.data.datasets[0].data = powerCurveData;
+            
+            // Current operation point on power curve
+            const currentKW = state.powerElec / 1000;
+            const currentV = Math.round(state.windSpeed);
+            powerCurveChart.data.datasets[1].data = Array(31).fill(null);
+            powerCurveChart.data.datasets[1].data[currentV] = currentKW;
+            powerCurveChart.update();
+
+            // Update 2: Cp Curve Data
+            const cpCurveData = [];
+            for (let i = 0; i < 30; i++) {
+                const tsr = i * 0.5;
+                cpCurveData.push(calculateCp(tsr, state.pitch).toFixed(3));
+            }
+            cpCurveChart.data.datasets[0].data = cpCurveData;
+
+            // Current operation point on Cp curve
+            const tsrIndex = Math.min(29, Math.max(0, Math.round(state.tsr * 2)));
+            cpCurveChart.data.datasets[1].data = Array(30).fill(null);
+            cpCurveChart.data.datasets[1].data[tsrIndex] = state.cp;
+            cpCurveChart.update();
+
+            // Update 3: Real-Time Power Time Series
+            const timeData = timeSeriesChart.data.datasets[0].data;
+            timeData.shift();
+            timeData.push(currentKW);
+            timeSeriesChart.update();
+        }
+
+        function updateUI() {
+            // Overlays & Text Displays
+            document.getElementById('overlayWind').innerText = state.windSpeed.toFixed(1) + ' m/s';
+            document.getElementById('overlayRpm').innerText = state.rpm.toFixed(1) + ' RPM';
+            document.getElementById('overlayPitch').innerText = state.pitch.toFixed(1) + '°';
+            document.getElementById('overlayTsr').innerText = state.tsr.toFixed(2);
+
+            // Technical details card
+            document.getElementById('txtSweptArea').innerText = Math.round(state.sweptArea).toLocaleString() + ' m²';
+            document.getElementById('txtWindPower').innerText = (state.powerWind / 1000).toFixed(1) + ' kW';
+            document.getElementById('txtCpVal').innerText = state.cp.toFixed(3) + ' (Max Betz: 0.593)';
+
+            // Metric Cards
+            const pMW = state.powerElec / 1e6;
+            const pKW = state.powerElec / 1e3;
+            document.getElementById('cardPower').innerHTML = pMW >= 1.0 
+                ? `${pMW.toFixed(2)} <span class="text-xs text-cyan-400">MW</span>`
+                : `${pKW.toFixed(1)} <span class="text-xs text-cyan-400">kW</span>`;
+
+            const energyKWh = state.energyAccumulatedJ / 3.6e6;
+            document.getElementById('cardEnergy').innerHTML = `${energyKWh.toFixed(2)} <span class="text-xs text-emerald-400">kWh</span>`;
+
+            // Equivalences: Average home consumes ~0.5 kW continuous
+            const homes = Math.floor(pKW / 0.5);
+            document.getElementById('cardHomes').innerText = homes.toLocaleString();
+
+            // CO2 emissions avoided ~0.4 kg per kWh
+            const co2Saved = energyKWh * 0.4;
+            document.getElementById('cardCo2').innerHTML = `${co2Saved.toFixed(2)} <span class="text-xs text-amber-400">kg</span>`;
+
+            // Status Badge & Warnings
+            const statusBadge = document.getElementById('statusBadge');
+            const brakeAlert = document.getElementById('brakeAlert');
+
+            if (state.isCutOut) {
+                statusBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5';
+                statusBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[10px]"></i><span>Freno Activo (Cut-out)</span>';
+                brakeAlert.classList.remove('hidden');
+            } else if (state.windSpeed < 3.0) {
+                statusBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1.5';
+                statusBadge.innerHTML = '<i class="fa-solid fa-pause text-[10px]"></i><span>Sin Viento Suficiente (<3m/s)</span>';
+                brakeAlert.classList.add('hidden');
+            } else {
+                statusBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
+                statusBadge.innerHTML = '<i class="fa-solid fa-circle-check text-[10px]"></i><span>Generación Normal MPPT</span>';
+                brakeAlert.classList.add('hidden');
+            }
+        }
+
+        function setupEventListeners() {
+            // Wind Speed Input
+            const inputWindSpeed = document.getElementById('inputWindSpeed');
+            inputWindSpeed.addEventListener('input', (e) => {
+                state.windSpeed = parseFloat(e.target.value);
+                document.getElementById('valWindSpeed').innerText = state.windSpeed.toFixed(1) + ' m/s';
+            });
+
+            // Rotor Radius Input
+            const inputRadius = document.getElementById('inputRadius');
+            inputRadius.addEventListener('input', (e) => {
+                state.radius = parseFloat(e.target.value);
+                document.getElementById('valRadius').innerText = state.radius + ' m';
+            });
+
+            // Air Density Input
+            const inputDensity = document.getElementById('inputDensity');
+            inputDensity.addEventListener('input', (e) => {
+                state.density = parseFloat(e.target.value);
+                document.getElementById('valDensity').innerText = state.density.toFixed(3) + ' kg/m³';
+            });
+
+            // Auto Pitch Toggle
+            const toggleAutoPitch = document.getElementById('toggleAutoPitch');
+            const manualPitchContainer = document.getElementById('manualPitchContainer');
+            toggleAutoPitch.addEventListener('change', (e) => {
+                state.autoPitch = e.target.checked;
+                if (state.autoPitch) {
+                    manualPitchContainer.classList.add('opacity-50', 'pointer-events-none');
+                } else {
+                    manualPitchContainer.classList.remove('opacity-50', 'pointer-events-none');
+                }
+            });
+
+            // Manual Pitch Input
+            const inputPitch = document.getElementById('inputPitch');
+            inputPitch.addEventListener('input', (e) => {
+                state.pitch = parseFloat(e.target.value);
+                document.getElementById('valPitch').innerText = state.pitch.toFixed(1) + '°';
+            });
+
+            // Efficiency Input
+            const inputEfficiency = document.getElementById('inputEfficiency');
+            inputEfficiency.addEventListener('input', (e) => {
+                state.efficiency = parseFloat(e.target.value) / 100.0;
+                document.getElementById('valEfficiency').innerText = e.target.value + ' %';
+            });
+
+            // Export CSV Button
+            document.getElementById('btnExportCSV').addEventListener('click', exportToCSV);
+
+            // Download HTML Button
+            document.getElementById('btnDownloadHTML').addEventListener('click', downloadHTMLFile);
+        }
+
+        function applyPreset(type) {
+            const windInput = document.getElementById('inputWindSpeed');
+            const radiusInput = document.getElementById('inputRadius');
+            const densityInput = document.getElementById('inputDensity');
+
+            if (type === 'light') {
+                state.windSpeed = 4.0;
+                state.radius = 50.0;
+                state.density = 1.225;
+            } else if (type === 'nominal') {
+                state.windSpeed = 12.0;
+                state.radius = 50.0;
+                state.density = 1.225;
+            } else if (type === 'storm') {
+                state.windSpeed = 27.0;
+                state.radius = 50.0;
+                state.density = 1.225;
+            } else if (type === 'offshore') {
+                state.windSpeed = 15.0;
+                state.radius = 80.0;
+                state.density = 1.250;
+            }
+
+            windInput.value = state.windSpeed;
+            radiusInput.value = state.radius;
+            densityInput.value = state.density;
+
+            document.getElementById('valWindSpeed').innerText = state.windSpeed.toFixed(1) + ' m/s';
+            document.getElementById('valRadius').innerText = state.radius + ' m';
+            document.getElementById('valDensity').innerText = state.density.toFixed(3) + ' kg/m³';
+        }
+
+        function logTelemetryData() {
+            const row = {
+                timestamp: new Date().toLocaleTimeString(),
+                windSpeed: state.windSpeed.toFixed(1),
+                radius: state.radius,
+                rpm: state.rpm.toFixed(1),
+                pitch: state.pitch.toFixed(1),
+                tsr: state.tsr.toFixed(2),
+                cp: state.cp.toFixed(3),
+                powerKW: (state.powerElec / 1000).toFixed(2),
+                energyKWh: (state.energyAccumulatedJ / 3.6e6).toFixed(3)
+            };
+
+            historyLog.push(row);
+            if (historyLog.length > MAX_HISTORY_LOG) {
+                historyLog.shift();
+            }
+        }
+
+        function exportToCSV() {
+            if (historyLog.length === 0) {
+                alert("Aún no hay datos suficientes registrados para exportar.");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Tiempo,Viento (m/s),Radio (m),Rotor (RPM),Pitch (deg),TSR (Lambda),Cp,Potencia (kW),Energia (kWh)\n";
+
+            historyLog.forEach(r => {
+                csvContent += `${r.timestamp},${r.windSpeed},${r.radius},${r.rpm},${r.pitch},${r.tsr},${r.cp},${r.powerKW},${r.energyKWh}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `simulacion_eolica_${Date.now()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function downloadHTMLFile() {
+            const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "Simulador_Energia_Eolica.html";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        let lastChartUpdate = 0;
+        let lastLogTime = 0;
+
+        function animate(time) {
+            const dt = Math.min((time - state.lastTime) / 1000, 0.1); // cap delta time to 100ms
+            state.lastTime = time;
+
+            // 1. Run Physics Calculation Engine
+            updatePhysics(dt);
+
+            // 2. Render Canvas Graphics
+            renderCanvas(dt);
+
+            // 3. Update UI Badges & Text
+            updateUI();
+
+            // 4. Periodically Update Charts (Every 200ms)
+            if (time - lastChartUpdate > 200) {
+                updateCharts();
+                lastChartUpdate = time;
+            }
+
+            // 5. Periodically Log Telemetry Data for CSV (Every 1000ms)
+            if (time - lastLogTime > 1000) {
+                logTelemetryData();
+                lastLogTime = time;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        window.onload = function() {
+            setupEventListeners();
+            initCharts();
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
